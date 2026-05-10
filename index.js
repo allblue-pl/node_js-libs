@@ -1,3 +1,3 @@
-import WebBuilder from "./ts-lib/WebBuilder.ts";
+import WebBuilder from "./lib/WebBuilder.js";
 
 export { WebBuilder };
