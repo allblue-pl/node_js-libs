@@ -1,0 +1,5 @@
+{
+    "abDependencies": {
+        "ab-fs": "https://github.com/allblue-pl/node_ab-fs"
+    }
+}
