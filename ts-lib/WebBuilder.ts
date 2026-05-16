@@ -1,8 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-import abFS from "ab-fs";
-import { abFSMatcher } from "ab-fs";
+import abFS, { abFSMatcher } from "ab-fs";
 import tsBlankSpace from "ts-blank-space";
 
 import type { BuildCallback, Parser } from "./ts-types.ts";
@@ -93,7 +92,7 @@ export default class WebBuilder {
                 path.dirname(relativePath) + '/' +
                 path.parse(relativePath).base));
 
-        console.log('TS', parseTS, path.extname(modulePath));
+        // console.log('TS', parseTS, path.extname(modulePath));
         if (parseTS && (path.extname(modulePath) === '.ts')) {
             builtFilePath = builtFilePath.substring(0, builtFilePath.length - 3) +
                     ".js";
@@ -132,7 +131,7 @@ export default class WebBuilder {
             if (match === null)
                 break;
         }
-        data = data.replace(regexp, `import $2 from "$4')`);
+        data = data.replace(regexp, `const $2 = require("$4")`);
         /* / import from modules */
 
         /* import from local */
@@ -142,8 +141,22 @@ export default class WebBuilder {
             if (match === null)
                 break;
         }
-        data = data.replace(regexp, `import $2 from "$4')`);
+        data = data.replace(regexp, `const $2 = require("$4")`);
         /* / import from local */
+
+        /* / export default = */
+        exports = '';
+        regexp = /(^|\n)export\s+default\s+([$_a-zA-Z0-9]*)\s+=/g;
+        while(true) {
+            let match = regexp.exec(data);
+            if (match === null)
+                break;
+
+            exports += `module.exports = ${match[2]};\r\n`;    
+        }
+        data = data.replace(regexp, '$1/* export default $2; */ const $2 =');
+        data += `${exports}`;
+        /* / export default = */
 
         /* export default */
         exports = '';
@@ -155,24 +168,9 @@ export default class WebBuilder {
 
             exports += `module.exports = ${match[3]};\r\nexports = module.exports;\r\n`;    
         }
-        data = data.replace(regexp, '$1$2 $3');
-        data += `\r\n\r\n${exports}`;
+        data = data.replace(regexp, '$1/* export default $2; */ $2 $3');
+        data += `${exports}`;
         /* / export default */
-
-        
-        /* / export default = */
-        exports = '';
-        regexp = /(^|\n)export\s+default\s+([$_a-zA-Z0-9]*)\s+=/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
-
-            exports += `module.exports = ${match[2]};\r\n`;    
-        }
-        data = data.replace(regexp, '$1import $2 =');
-        data += `\r\n\r\n${exports}`;
-        /* / export default = */
 
         /* / export default [const] */
         exports = '';
@@ -184,7 +182,7 @@ export default class WebBuilder {
 
             exports += `module.exports = ${match[2]};\r\n`;    
         }
-        data = data.replace(regexp, '$1/* export default $2; */');
+        data = data.replace(regexp, '$1/* export default $2; */ const $2');
         data += `\r\n${exports}`;
         /* / export default [const] */
 
@@ -198,8 +196,8 @@ export default class WebBuilder {
 
             exports += `module.exports.${match[3]} = ${match[3]};\r\n`;    
         }
-        data = data.replace(regexp, '$1$2 $3');
-        data += `\r\n\r\n${exports}`;
+        data = data.replace(regexp, '$1/* export default $2; */ $2 $3');
+        data += `${exports}`;
         /* / export */
 
         return data;
