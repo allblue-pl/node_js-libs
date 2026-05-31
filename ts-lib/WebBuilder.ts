@@ -182,7 +182,7 @@ export default class WebBuilder {
 
             exports += `module.exports = ${match[2]};\r\n`;    
         }
-        data = data.replace(regexp, '$1/* export default $2; */ const $2');
+        data = data.replace(regexp, '$1/* export default $2; */');
         data += `\r\n${exports}`;
         /* / export default [const] */
 
