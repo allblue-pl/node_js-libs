@@ -28,10 +28,12 @@
   },
   "homepage": "https://github.com/allblue-pl/node_js-libs#readme",
   "dependencies": {
-    "@types/node": "25.6.*",
+    "link": "^2.1.2",
+    "ts-morph": "28.0.*",
     "typescript": "6.0.*"
   },
   "devDependencies": {
-    "ts-blank-space": "^0.8.0"
+    "@types/node": "25.9.*",
+    "ts-blank-space": "0.9.*"
   }
 }

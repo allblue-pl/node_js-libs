@@ -2,28 +2,23 @@
     "compilerOptions": {
         "allowImportingTsExtensions": true,
         "declaration": true,
-        "declarationDir": "ts-types",
-        "emitDeclarationOnly": true,
+        "declarationMap": true,
         "erasableSyntaxOnly": true,
         "module": "nodenext",
-        "outDir": ".",
+        "noEmit": true,
         "rewriteRelativeImportExtensions": true,
+        "rootDir": ".",
         "strict": true,
+        "paths": {
+        },
         "target": "esnext",
-        "typeRoots": [ 
-            "./node_modules/@types", 
-            "./node_modules/ab-fs-watcher/js-modules", 
+        "typeRoots": [
+            "../node_modules/@types"
         ],
-        "types": [ 
-            "anymatch", 
-            "node"
-        ],
+        "types": [ "node" ],
         "useDefineForClassFields": true,
         "verbatimModuleSyntax": true
     },
     "exclude": [
-        "./lib/**/*",
-        "./ts-types/**/*",
-        "./tests/**/*"
     ]
 }

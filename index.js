@@ -1,3 +1,3 @@
-import WebBuilder from "./lib/WebBuilder.js";
+import JSLibsBuilder from "./lib/JSLibsBuilder.js";
 
-export { WebBuilder };
+export { JSLibsBuilder };

@@ -1,215 +1,130 @@
-import fs from "fs";
-import path from "path";
+// import fs from "fs";
+// import path from "path";
 
-import abFS, { abFSMatcher } from "ab-fs";
-import tsBlankSpace from "ts-blank-space";
+// import abFS, { abFSMatcher } from "ab-fs";
+// import tsBlankSpace from "ts-blank-space";
 
-import type { BuildCallback, Parser } from "./ts-types.ts";
+// import type { BuildCallback, Parser } from "./ts-types.ts";
 
-export default class WebBuilder {
-    #name: string;
-    #path: string;
-    #path_Build: string;
+// export default class TSWebBuilder {
+//     #name: string;
+//     #path: string;
+//     #path_Build: string;
 
-    #parsers: Array<Parser>;
-
-    constructor(name: string, path: string, buildPath: string) {
-        this.#name = name;
-        this.#path = path;
-        this.#path_Build = buildPath;
-
-        this.#parsers = [];
-    }
-
-    addParser(parser: Parser): void {
-        this.#parsers.push(parser);
-    }
-
-    async buildLib_Async(parseTS: boolean): Promise<Array<string>> {
-        this.#createBuildPath();
-
-        let filePaths = await abFSMatcher.getPaths_Async([ this.#path + 
-                '/**/*.js' ]);
-
-        let buildFilePromises: Array<Promise<void>> = [];
-        let builtFilePaths: Array<string> = [];
-        for (let i = 0; i < filePaths.length; i++) {
-            buildFilePromises.push(this.#build_File_Async(filePaths[i],
-                    builtFilePaths, parseTS));
-        }
-
-        await Promise.all(buildFilePromises);
-
-        return builtFilePaths;
-    }
-
-    async buildPkg_Async(parseTS: boolean): Promise<Array<string>> {
-        this.#createBuildPath();
-
-        let filePaths = await abFSMatcher.getPaths_Async([ this.#path + 
-                (parseTS ? '/**/*.js' : '/**/*.ts') ]);
-
-        let buildFilePromises: Array<Promise<void>> = [];
-        let builtFilePaths: Array<string> = [];
-        for (let i = 0; i < filePaths.length; i++) {
-            buildFilePromises.push(this.#build_File_Async(filePaths[i],
-                    builtFilePaths, parseTS));
-        }
-
-        await Promise.all(buildFilePromises);
-
-        return builtFilePaths;
-    }
-
-    async buildScript_Async(filePath: string, parseTS: boolean): Promise<string> {
-        this.#createBuildPath();
-
-        let builtFilePaths: Array<string> = [];
-        await this.#build_File_Async(filePath, builtFilePaths, parseTS);
-
-        return builtFilePaths[0];
-    }
+//     #parsers: Array<Parser>;
 
 
-    async #build_File_Async(filePath: string, builtFilePaths: Array<string>,
-            parseTS: boolean): Promise<void> {
-        let data = fs.readFileSync(filePath, "utf-8");
+//     constructor(name: string, path: string, buildPath: string) {
+//         this.#name = name;
+//         this.#path = path;
+//         this.#path_Build = buildPath;
 
-        let basename = path.basename(filePath);
-        let relativePath = path.relative(path.resolve(
-                this.#path), filePath);
-        let builtFilePath = path.join(this.#path_Build, relativePath);
-        let builtDirPath = path.dirname(builtFilePath);
+//         this.#parsers = [];
+//     }
 
-        if (!abFS.dir.existsSync(builtDirPath))
-            abFS.dir.createRecursiveSync(builtDirPath);
+//     addParser(parser: Parser): void {
+//         this.#parsers.push(parser);
+//     }
 
-        let modulePath = this.#parseModulePath(
-                relativePath === 'index.js' ?
-                'index.js' :
-                (basename === 'index.js' ?
-                path.dirname(relativePath) + '/index.js' :
-                path.dirname(relativePath) + '/' +
-                path.parse(relativePath).base));
+//     async buildPkg_Async(errors: Array<string>): Promise<Array<string>> {
+//         this.#createBuildPath();
 
-        // console.log('TS', parseTS, path.extname(modulePath));
-        if (parseTS && (path.extname(modulePath) === '.ts')) {
-            builtFilePath = builtFilePath.substring(0, builtFilePath.length - 3) +
-                    ".js";
-            data = tsBlankSpace(data);
-        }
+//         let filePaths = await abFSMatcher.getPaths_Async([ 
+//                 this.#path + '/index.js',
+//                 this.#path + '/js-lib/**/*.js',
+//                 this.#path + '/index.ts',
+//                 this.#path + '/ts-lib/**/*.ts',
+//         ]);
 
-        data = this.#parseData(data);
+//         let builtFilePaths: Array<string> = [];
+//         for (let i = 0; i < filePaths.length; i++) {
+//             if (filePaths[i].lastIndexOf(".d.ts") === filePaths[i].length - 5)
+//                 continue;
+//             this.#build_File(filePaths[i], builtFilePaths, errors);
+//         }
 
-        data = 'jsLibs.exportModule(' +
-                '\'' + this.#name + '\'' +
-                ', \'' + modulePath + '\'' +
-                ', (require, module, exports) => { ' +
-                data +
-                ' });';
+//         return builtFilePaths;
+//     }
 
-        for (let parser of this.#parsers)
-            data = parser(data, filePath, builtFilePath);
+//     async buildScript_Async(libFSPath: string, buildFSPath: string, scriptFSPath: string, 
+//             errors: Array<string>): Promise<string> {
+//         this.#createBuildPath();
 
-        fs.writeFileSync(builtFilePath, data, 'utf-8');
-        builtFilePaths.push(builtFilePath);
-    }
+//         let builtFilePaths: Array<string> = [];
+//         this.#build_File(fsPath, builtFilePaths, errors);
 
-    #createBuildPath(): void {
-        if (!fs.existsSync(this.#path_Build))
-            abFS.mkdirRecursiveSync(this.#path_Build);
-    }
+//         return builtFilePaths[0];
+//     }
 
-    #parseData(data: string) {
-        let regexp = null;
-        let exports = '';
-        
-        /* import from modules */
-        regexp = /(^|\n)import\s+([$_a-zA-Z0-9]*)\s+from\s+('|")([_\-a-zA-Z0-9]+)('|")/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
-        }
-        data = data.replace(regexp, `const $2 = require("$4")`);
-        /* / import from modules */
 
-        /* import from local */
-        regexp = /(^|\n)import\s+([$_a-zA-Z0-9]*)\s+from\s+('|")([_\-/\\.\$a-zA-Z0-9]+?)('|")/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
-        }
-        data = data.replace(regexp, `const $2 = require("$4")`);
-        /* / import from local */
+//     #build_File(fsPath: string, builtFilePaths: Array<string>, 
+//             errors: Array<string>): void {
+//         let data = fs.readFileSync(fsPath, "utf-8");
 
-        /* / export default = */
-        exports = '';
-        regexp = /(^|\n)export\s+default\s+([$_a-zA-Z0-9]*)\s+=/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
+//         let basename = path.basename(fsPath);
+//         let ext = path.extname(fsPath);
+//         let relativePath = path.relative(path.resolve(
+//                 this.#path), fsPath);
+//         let builtFilePath = path.join(this.#path_Build, relativePath);
+//         let builtDirPath = path.dirname(builtFilePath);
 
-            exports += `module.exports = ${match[2]};\r\n`;    
-        }
-        data = data.replace(regexp, '$1/* export default $2; */ const $2 =');
-        data += `${exports}`;
-        /* / export default = */
+//         if (!abFS.dir.existsSync(builtDirPath))
+//             abFS.dir.createRecursiveSync(builtDirPath);
 
-        /* export default */
-        exports = '';
-        regexp = /(^|\n)export\s+default\s+(class|function|async\s+function)\s+([$_a-zA-Z0-9]*)/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
+//         let scriptPath = this.#parseModulePath(
+//                 relativePath === `index${ext}` ?
+//                 `index${ext}` :
+//                 (basename === `index${ext}` ?
+//                 path.dirname(relativePath) + `/index${ext}` :
+//                 path.dirname(relativePath) + '/' +
+//                 path.parse(relativePath).base));
 
-            exports += `module.exports = ${match[3]};\r\nexports = module.exports;\r\n`;    
-        }
-        data = data.replace(regexp, '$1/* export default $2; */ $2 $3');
-        data += `${exports}`;
-        /* / export default */
+//         abTSValidator.validateData(fsPath, scriptPath, data, errors);
 
-        /* / export default [const] */
-        exports = '';
-        regexp = /(^|\n)export\s+default\s+([$_a-zA-Z0-9]*);?/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
+//         if (ext === '.ts') {
+//             builtFilePath = builtFilePath.substring(0, builtFilePath.length - 3) +
+//                     ".js";
+//             data = tsBlankSpace(data);
+//         }
 
-            exports += `module.exports = ${match[2]};\r\n`;    
-        }
-        data = data.replace(regexp, '$1/* export default $2; */');
-        data += `\r\n${exports}`;
-        /* / export default [const] */
+//         let exportDefines: Array<string> = [];
+//         data = abJSLibsParser.parseData(fsPath, scriptPath, data, exportDefines, 
+//                 errors);
 
-        /* export */
-        exports = '';
-        regexp = /(^|\n)export\s+(class|const|let|function|async\s+function)\s+([$_a-zA-Z0-9]*)/g;
-        while(true) {
-            let match = regexp.exec(data);
-            if (match === null)
-                break;
+//         for (let i = 0; i < exportDefines.length; i++)
+//             exportDefines[i] = `"${exportDefines[i]}"`;
 
-            exports += `module.exports.${match[3]} = ${match[3]};\r\n`;    
-        }
-        data = data.replace(regexp, '$1/* export default $2; */ $2 $3');
-        data += `${exports}`;
-        /* / export */
+//         let exportPath_Parsed = path.parse(scriptPath);
+//         let exportPath = "." + 
+//                 (exportPath_Parsed.dir === "" ? "" : `/${exportPath_Parsed.dir}`) + 
+//                 "/" + exportPath_Parsed.name;
+//         data = 'jsLibs.exportScript(' +
+//                 '\'' + this.#name + '\'' +
+//                 ', \'' + exportPath + '\'' +
+//                 ', [ ' + exportDefines.join(",") + ' ]' +
+//                 ', (_jsLib) => { ' +
+//                 data +
+//                 ' });';
 
-        return data;
-    }
+//         for (let parser of this.#parsers)
+//             data = parser(data, fsPath, builtFilePath);
 
-    #parseModulePath(modulePath: string): string {
-        modulePath = modulePath.replace(/\\/g, '/');
+//         fs.writeFileSync(builtFilePath, data, 'utf-8');
+//         builtFilePaths.push(builtFilePath);
+//     }
 
-        if (modulePath.indexOf('./') === 0)
-            return modulePath.substring(2);
+//     #createBuildPath(): void {
+//         if (!fs.existsSync(this.#path_Build))
+//             abFS.mkdirRecursiveSync(this.#path_Build);
+//     }
 
-        return modulePath;
-    }
+//     #parseModulePath(modulePath: string): string {
+//         modulePath = modulePath.replace(/\\/g, '/');
 
-}
+//         if (modulePath.indexOf('./') === 0)
+//             return modulePath.substring(2);
+
+//         return modulePath;
+//     }
+
+// }
