@@ -29,8 +29,7 @@
   "homepage": "https://github.com/allblue-pl/node_js-libs#readme",
   "dependencies": {
     "link": "^2.1.2",
-    "ts-morph": "28.0.*",
-    "typescript": "6.0.*"
+    "ts-morph": "28.0.*"
   },
   "devDependencies": {
     "@types/node": "25.9.*",

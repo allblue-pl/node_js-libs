@@ -7,7 +7,7 @@ import tsBlankSpace from "ts-blank-space";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let data = fs.readFileSync("./src/b.ts").toString();
+let data = fs.readFileSync("./src/a.ts").toString();
 
 let exportDefines: Array<string> = [];
 let errors: Array<string> = [];
@@ -15,8 +15,10 @@ let errors: Array<string> = [];
 data = tsBlankSpace(data);
 data = jsLibsParser.parseData("test", "./src", "./src/a.test.ts", data, exportDefines, errors);
 
-console.log(data);
+fs.writeFileSync("./out/a.js", data);
 
-console.log(exportDefines);
+// console.log(data);
 
-console.log(errors);
+// console.log(exportDefines);
+
+// console.log(errors);

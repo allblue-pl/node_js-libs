@@ -69,6 +69,8 @@ export default class JSLibsBuilder {
             fs.writeFileSync(destFSPath, data);
 
             if (sourceMap) {
+                // console.log(destFSPath_Parsed.dir, scriptFSPath, path.relative(
+                //         destFSPath_Parsed.dir, scriptFSPath));
                 fs.writeFileSync(`${destFSPath}.map`, this.#getMapContent(
                         destFSPath_Parsed.base, path.relative(destFSPath_Parsed.dir, 
                         scriptFSPath), data));

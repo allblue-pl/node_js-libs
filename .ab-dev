@@ -3,5 +3,11 @@
         "@allblue/ab-ts-parser": "https://github.com/allblue-pl/node_ab-ts-parser",
         "ab-fs": "https://github.com/allblue-pl/node_ab-fs",
         "ab-tasks": "https://github.com/allblue-pl/js_ab-tasks"
+    },
+    "abTS": {
+        "tsconfig": ".",
+        "libs": [
+            "."
+        ]
     }
 }
