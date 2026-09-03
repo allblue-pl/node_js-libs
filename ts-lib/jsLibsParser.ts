@@ -126,17 +126,53 @@ export class jsLibsParser_Class {
     }
 
     #parseData_RemoveExports(data: string): string {
+        // let r1 = /(^|(\r\n))([ \t]*)export([ \t]*)\{([ \t]*)(.+?)([ \t]*)\}([ \t]*)?(;)/gs;
+        // let replaces = [];
+        // while (true) {
+        //     let match = r1.exec(data);
+        //     if (match === null)
+        //         break;
+
+        //     replaces.push([ match[0], `${match[1]}/* ${match[3]}export${match[4]}{${match[5]}${match[6]}${match[7]}}${match[8]}${match[9]} */`])
+        // }
+
+        // for (let replace of replaces) {
+        //     for (let i = 0; i < replace[0].length; i++) {
+        //         if (replace[0][i] === "\n")
+        //             replace[1] += "\r\n";
+        //     }
+        //     data.replace(replace[0], replace[1]);
+        // }
+
+        // replaces = [];
+        // let r2 = /(^|(\r\n))([ \t]*)export([ \t]*)(default([ \t]*))?(.+?)(;)/gs;
+        // while (true) {
+        //     let match = r2.exec(data);
+        //     if (match === null)
+        //         break;
+
+        //     replaces.push([ match[0], `${match[1]}/* ${match[3]}export${match[4]}${match[5]}*/ ${match[7]}${match[8]}` ]);
+        // }
+        // for (let replace of replaces) {
+        //     for (let i = 0; i < replace[0].length; i++) {
+        //         if (replace[0][i] === "\n")
+        //             replace[1] += "\r\n";
+        //     }
+        //     data.replace(replace[0], replace[1]);
+        // }
+
         data = data.replace(/(^|(\r\n))([ \t]*)export([ \t]*)\{([ \t]*)(.+?)([ \t]*)\}([ \t]*)?(;)/gs, 
                 "$1/* $3export$4{$5$6$7}$8$9 */");
         data = data.replace(/(^|(\r\n))([ \t]*)export([ \t]*)(default([ \t]*))?(.+?)(;)/gs, 
                 "$1/* $3export$4$5*/ $7$8");
-                
+
         return data;
     }
 
     #parseData_ReplaceImports(libName: string, libFSPath: string, scriptFSPath: string, 
             sourceFile: SourceFile, data: string, errors: Array<string>): string {
-        let replaces: Array<{start: number, length: number, text: string}> = [];
+        let declarationReplaces: DeclarationReplaceInfos = {};
+        let importReplaces: ImportReplaceInfos = [];
         let importDeclarations = sourceFile.getImportDeclarations();
         for (let importDeclaration of importDeclarations) {
             let importedDefines: Array<ImportDefine> = [];
@@ -149,7 +185,8 @@ export class jsLibsParser_Class {
 
                 this.#parseData_ReplaceImports_FindReferences(libName, libFSPath, 
                         scriptFSPath, importDeclaration, sourceFile, "*", undefined, 
-                        namespaceImport.findReferences(), replaces, importedDefines,
+                        namespaceImport.findReferences(), declarationReplaces, 
+                        importReplaces, importedDefines,
                         errors);
             }
 
@@ -160,8 +197,8 @@ export class jsLibsParser_Class {
 
                 this.#parseData_ReplaceImports_FindReferences(libName, libFSPath, 
                         scriptFSPath, importDeclaration, sourceFile, "default",
-                        undefined, defaultImport.findReferences(), replaces,
-                        importedDefines, errors);
+                        undefined, defaultImport.findReferences(), declarationReplaces,
+                        importReplaces, importedDefines, errors);
             }
 
             /* Named Imports */
@@ -174,8 +211,8 @@ export class jsLibsParser_Class {
                 this.#parseData_ReplaceImports_FindReferences(libName, libFSPath, 
                         scriptFSPath, importDeclaration, sourceFile, nameNode.getText(), 
                         aliasNode === undefined ? nameNode.getText() : aliasNode.getText(),
-                        (nameNode as Identifier).findReferences(), replaces, importedDefines, 
-                        errors);
+                        (nameNode as Identifier).findReferences(), declarationReplaces, 
+                        importReplaces, importedDefines, errors);
             }
 
             /* Import Declaration */
@@ -195,21 +232,33 @@ export class jsLibsParser_Class {
             }
 
             if (sideEffectImport) {
-                replaces.push({
+                let newLinesCount = 0;
+                let importDeclarationText = importDeclaration.getText();
+                for (let i = 0; i < importDeclarationText.length; i++)
+                    newLinesCount += importDeclarationText[i] === "\n" ? 1 : 0;
+
+                importReplaces.push({
                     start: importDeclaration.getStart(),
                     length: importDeclaration.getText().length,
                     text: `_jsLib.import("${importInfo.pkgName}"` + 
                             `, "${importInfo.scriptPath}", null, null` +
                             `, "${importPath}");`,
+                    newLinesCount: newLinesCount,
                 });
             } else {
-                replaces.push({
+                let newLinesCount = 0;
+                let importDeclarationText = importDeclaration.getText();
+                for (let i = 0; i < importDeclarationText.length; i++)
+                    newLinesCount += importDeclarationText[i] === "\n" ? 1 : 0;
+
+                declarationReplaces[importDeclaration.getStart()] = {
                     start: importDeclaration.getStart(),
                     length: importDeclaration.getText().length,
                     text: `_jsLib.importDeclaration("${importInfo.pkgName}"` + 
                             `, "${importInfo.scriptPath}", [ ${importedDefines_Parsed.join(", ")} ]` +
                             `, "${importPath}");`,
-                });
+                    newLinesCount: newLinesCount,
+                };
             }
 
             if (importPath[importPath.length - 1] === ".") {
@@ -219,12 +268,23 @@ export class jsLibsParser_Class {
             }
         }
 
-        replaces.sort((a, b) => {
+        let replaces_Sorted = [];
+        for (let file in declarationReplaces)
+            replaces_Sorted.push(declarationReplaces[file]);
+        for (let replace of importReplaces)
+            replaces_Sorted.push(replace);
+
+        replaces_Sorted.sort((a, b) => {
             return b.start - a.start;
         });
-        for (let i = 0; i < replaces.length; i++) {
-            data = data.substring(0, replaces[i].start) + replaces[i].text + 
-                    data.substring(replaces[i].start + replaces[i].length);
+        for (let i = 0; i < replaces_Sorted.length; i++) {
+            let extraLines = "";
+            for (let j = 0; j < replaces_Sorted[i].newLinesCount; j++)
+                extraLines += "\r\n";
+
+            data = data.substring(0, replaces_Sorted[i].start) + replaces_Sorted[i].text + 
+                    extraLines + data.substring(replaces_Sorted[i].start + 
+                    replaces_Sorted[i].length);
         }
 
         return data;
@@ -234,7 +294,7 @@ export class jsLibsParser_Class {
             scriptFSPath: string, importDeclaration: ImportDeclaration, 
             sourceFile: SourceFile, importName: string, aliasName: string|undefined, 
             importReferenceFinds: ReferencedSymbol[], 
-            replaces: Array<{start: number, length: number, text: string}>, 
+            declarationReplaces: DeclarationReplaceInfos, importReplaces: ImportReplaceInfos,
             importedDefines: Array<ImportDefine>, errors: Array<string>): void {
         for (let importReferenceFind of importReferenceFinds) {
             let importReferences = importReferenceFind.getReferences();                
@@ -259,18 +319,24 @@ export class jsLibsParser_Class {
                 let importInfo = this.#resolveImportInfo(importReference.getNode(), 
                         libName, libFSPath, scriptFSPath, importPath, errors);
 
+                // let importDeclarationText = importDeclaration.getText();
+                // let newLinesCount = 0;
+                // for (let i = 0; i < importDeclarationText.length; i++)
+                //     newLinesCount += importDeclarationText[i] === "\n" ? 1 : 0;
+
                 importedDefines.push({ 
                     name: importName, 
                     alias: symbolText,
                 });
 
-                replaces.push({
+                importReplaces.push({
                     start: importReference.getNode().getStart(),
                     length: symbolText.length,
                     text: `(_jsLib.import("${importInfo.pkgName}"` +
                             `, "${importInfo.scriptPath}", "${importName}"` +
                             `, "${aliasName === undefined ? symbolText : aliasName}"` +
                             `, "${importPath}"))`,
+                    newLinesCount: 0,
                 });
 
                 if (importPath[importPath.length - 1] === ".") {
@@ -320,3 +386,12 @@ export class jsLibsParser_Class {
 }
 const jsLibsParser = new jsLibsParser_Class();
 export default jsLibsParser;
+
+type ReplaceInfo = {
+    start: number,
+    length: number, 
+    text: string, 
+    newLinesCount: number,
+};
+type DeclarationReplaceInfos = {[file: number]: ReplaceInfo};
+type ImportReplaceInfos = Array<ReplaceInfo>;
